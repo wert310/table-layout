@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -XCPP #-}
 -- | This module provides tools to layout text as grid or table. Besides basic
 -- things like specifying column positioning, alignment on the same character
 -- and length restriction it also provides advanced features like justifying
@@ -129,6 +130,15 @@ import           Text.Layout.Table.Primitives.LenSpec.Internal
 import           Text.Layout.Table.Primitives.Occurence
 import           Text.Layout.Table.Internal
 import           Text.Layout.Table.Vertical
+
+#if MIN_VERSION_base(4,9,0)
+-- Data.Semigroup was added in base-4.9
+import qualified Data.Semigroup as Sem
+#endif
+#if !(MIN_VERSION_base(4,8,0))
+-- starting with base-4.8, Monoid is rexported from Prelude
+import Data.Monoid ( Monoid (..) )
+#endif
 
 -------------------------------------------------------------------------------
 -- Layout types and combinators
@@ -385,11 +395,30 @@ showAI (AlignInfo l r) = "AlignInfo " ++ show l ++ " " ++ show r
 widthAI :: AlignInfo -> Int
 widthAI (AlignInfo l r) = l + r
 
+#if MIN_VERSION_base(4,9,0)
+instance Sem.Semigroup AlignInfo where
+  (<>) = alignInfoAppend
+#endif
+
 -- | Produce an 'AlignInfo' that is wide enough to hold inputs of both given
 -- 'AlignInfo's.
 instance Monoid AlignInfo where
-    mempty = AlignInfo 0 0
-    mappend (AlignInfo ll lr) (AlignInfo rl rr) = AlignInfo (max ll rl) (max lr rr)
+  mempty = AlignInfo 0 0
+
+#if MIN_VERSION_base(4,11,0)
+-- starting with base-4.11, mappend definitions are redundant;
+-- at some point `mappend` will be removed from `Monoid`
+#elif MIN_VERSION_base(4,9,0)
+  mappend = (Sem.<>)
+#else
+-- base < 4.9
+-- prior to GHC 8.0 / base-4.9 where no `Semigroup` class existed
+  mappend = alignInfoAppend
+#endif
+
+
+alignInfoAppend :: AlignInfo -> AlignInfo -> AlignInfo
+alignInfoAppend (AlignInfo ll lr) (AlignInfo rl rr) = AlignInfo (max ll rl) (max lr rr)
 
 -- | Derive the 'ColModInfo' by using layout specifications and the actual cells
 -- of a column.
